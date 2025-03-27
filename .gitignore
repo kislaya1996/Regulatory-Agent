@@ -4,3 +4,4 @@ annual_reports
 *.txt
 *.pdf
 *.xlsx
+__pycache__
