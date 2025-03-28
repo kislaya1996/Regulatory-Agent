@@ -1,0 +1,8 @@
+pdfminer.six
+anthropic
+dotenv
+requests
+beautifulsoup4
+langchain
+chromadb
+sentence_transformers

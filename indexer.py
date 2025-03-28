@@ -19,6 +19,8 @@ class Indexer:
 
     def index(self):
         ids, texts, metadatas = self.get_ready()
+
+        print(ids,'\n',texts,'\n', metadatas, '\n')
         
         try:
             self.collection.add(

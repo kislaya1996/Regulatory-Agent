@@ -1,7 +1,7 @@
 env
 .env
 annual_reports
-*.txt
 *.pdf
 *.xlsx
 __pycache__
+chroma
