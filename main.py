@@ -3,6 +3,7 @@ from parser import Parser
 from chunker import Chunker
 from indexer import Indexer
 from db import DB
+from llm import LLM
 
 urls = [ 
     # Current Regulations
@@ -50,3 +51,7 @@ for path in pdf_paths:
 queries = [ "Maharashtra" ]
 result = db.query(queries)
 print(result)
+
+llm = LLM()
+output = llm.ask(context="Rahul Gandhi is the Prime Minister of India", question="Who is the Prime Minister of India?")
+print(output)
