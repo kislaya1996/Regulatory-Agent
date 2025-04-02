@@ -37,21 +37,22 @@ for path in pdf_paths:
     parser = Parser(pdf_path=path)
     parsed_document = parser.parse()
 
-    print(f"Parsed!\n", parsed_document)
+    print(f"Parsed!\n")
     
     chunker = Chunker(document=parsed_document)
     chunked_document = chunker.chunk()
 
-    print(f"Chunked!\n", chunked_document)
+    print(f"Chunked!\n")
 
-    indexer = Indexer(collection=mh_collection, chunked_content=chunked_document)
+    indexer = Indexer(collection=mh_collection, chunked_content=chunked_document, batch_size=5)
+    indexed_document = indexer.index()
 
     print(f"Indexed!\n")
 
 queries = [ "Maharashtra" ]
 result = db.query(queries)
-print(result)
+print(f'Query result{result}')
 
-llm = LLM()
-output = llm.ask(context="Rahul Gandhi is the Prime Minister of India", question="Who is the Prime Minister of India?")
-print(output)
+# llm = LLM()
+# output = llm.ask(context="Rahul Gandhi is the Prime Minister of India", question="Who is the Prime Minister of India?")
+# print(output)

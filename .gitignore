@@ -5,3 +5,4 @@ annual_reports
 *.xlsx
 __pycache__
 chroma
+reg-venv
