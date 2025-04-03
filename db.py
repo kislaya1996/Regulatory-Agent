@@ -35,18 +35,32 @@ class DB:
 
         return ids, texts, metadatas
 
-    def index(self, chunked_content):
+    def index(self, chunked_content, batch_size=100):
         ids, texts, metadatas = self.get_ready(chunked_content)
-        
-        try:
-            self.collection.add(
-                documents=texts,
-                metadatas=metadatas,
-                ids=ids
-            )
-        
-        except Exception as e:
-            print(f"Indexing failed: {e}")       
+        print(f"Total chunks to index: {len(ids)}")
+
+        # Process in batches to avoid overwhelming the database
+        for i in range(0, len(ids), batch_size):
+            end_idx = min(i + batch_size, len(ids))
+            batch_ids = ids[i:end_idx]
+            batch_texts = texts[i:end_idx]
+            batch_metadatas = metadatas[i:end_idx]
+            
+            print(f"Indexing batch {i//batch_size + 1}: chunks {i} to {end_idx-1}")
+            
+            try:
+                self.collection.add(
+                    documents=batch_texts,
+                    metadatas=batch_metadatas,
+                    ids=batch_ids
+                )
+                print(f"Successfully indexed batch {i//batch_size + 1}")
+                
+            except Exception as e:
+                print(f"Indexing failed for batch {i//batch_size + 1}: {e}")
+                
+        print("Indexing complete!")
+        return    
     
     def query(self, queries, top_k=5):
         
