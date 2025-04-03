@@ -31,11 +31,13 @@ class Parser:
                 interpreter.process_page(page)
                 
                 text = output_string.getvalue().strip()
-                self.document_content.append({
-                    "page_number": i,
-                    "content": text,
-                    "source": self.file_name
-                })
+
+                if text and len(text) > 50:
+                    self.document_content.append({
+                        "page_number": i,
+                        "content": text,
+                        "source": self.file_name
+                    })
 
     def parse(self):
         self.extract_text()

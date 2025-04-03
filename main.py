@@ -1,7 +1,6 @@
 from scraper import Scraper
 from parser import Parser
 from chunker import Chunker
-from indexer import Indexer
 from db import DB
 from llm import LLM
 
@@ -21,7 +20,6 @@ urls = [
     ]
 
 db = DB(db_name="maharashtra")
-mh_collection = db.get_collection()
 
 pdf_paths = set()
 
@@ -35,23 +33,20 @@ for path in pdf_paths:
     print(f"Processing {path}")
 
     parser = Parser(pdf_path=path)
-    parsed_document = parser.parse()
-
-    print(f"Parsed!\n", parsed_document)
+    parsed_content = parser.parse()
+    print(f"Parsed!\n")
     
-    chunker = Chunker(document=parsed_document)
-    chunked_document = chunker.chunk()
+    chunker = Chunker(document=parsed_content)
+    chunked_content = chunker.chunk()
+    print(f"Chunked!\n")
 
-    print(f"Chunked!\n", chunked_document)
-
-    indexer = Indexer(collection=mh_collection, chunked_content=chunked_document)
-
+    db.index(chunked_content)
     print(f"Indexed!\n")
 
-queries = [ "Maharashtra" ]
+queries = [ "subsidies" ]
 result = db.query(queries)
-print(result)
+context = '\n\n'.join(result)
 
 llm = LLM()
-output = llm.ask(context="Rahul Gandhi is the Prime Minister of India", question="Who is the Prime Minister of India?")
+output = llm.ask(context, question="What are the regional subsidies available in Maharashtra?")
 print(output)

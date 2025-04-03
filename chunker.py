@@ -1,7 +1,7 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 class Chunker:
-    def __init__(self, document, chunk_size=500, overlap=50):
+    def __init__(self, document, chunk_size=300, overlap=30):
         self.document = document
         self.chunked_content = []
         self.chunk_size = chunk_size
