@@ -22,47 +22,11 @@ class DB:
         
         except Exception as e:
             print(f"Error connecting to Chroma : {e}")
-
-    def get_ready(self, chunked_content):
-        ids = []
-        texts = []
-        metadatas = []
-
-        for chunk in chunked_content:
-            ids.append(hashlib.blake2b(chunk["content"].encode()).hexdigest())
-            texts.append(chunk["content"])
-            metadatas.append({"page_number" : chunk["page_number"], "source" : chunk["source"]})
-
-        return ids, texts, metadatas
-
-    def index(self, chunked_content, batch_size=100):
-        ids, texts, metadatas = self.get_ready(chunked_content)
-        print(f"Total chunks to index: {len(ids)}")
-
-        # Process in batches to avoid overwhelming the database
-        for i in range(0, len(ids), batch_size):
-            end_idx = min(i + batch_size, len(ids))
-            batch_ids = ids[i:end_idx]
-            batch_texts = texts[i:end_idx]
-            batch_metadatas = metadatas[i:end_idx]
-            
-            print(f"Indexing batch {i//batch_size + 1}: chunks {i} to {end_idx-1}")
-            
-            try:
-                self.collection.add(
-                    documents=batch_texts,
-                    metadatas=batch_metadatas,
-                    ids=batch_ids
-                )
-                print(f"Successfully indexed batch {i//batch_size + 1}")
-                
-            except Exception as e:
-                print(f"Indexing failed for batch {i//batch_size + 1}: {e}")
-                
-        print("Indexing complete!")
-        return    
     
-    def query(self, queries, top_k=5):
+    def get_collection(self):
+        return self.collection
+    
+    def query(self, queries, top_k=10):
         
         try:
             count = self.collection.count()

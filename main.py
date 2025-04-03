@@ -1,6 +1,7 @@
 from scraper import Scraper
 from parser import Parser
 from chunker import Chunker
+from indexer import Indexer
 from db import DB
 from llm import LLM
 
@@ -20,6 +21,7 @@ urls = [
     ]
 
 db = DB(db_name="maharashtra")
+mh_collection = db.get_collection()
 
 pdf_paths = set()
 
@@ -27,7 +29,6 @@ for url in urls:
     scraper = Scraper(base_url=url)
     save_paths = scraper.scrape()
     pdf_paths.update(save_paths)
-
 
 for path in pdf_paths:
     print(f"Processing {path}")
@@ -40,7 +41,8 @@ for path in pdf_paths:
     chunked_content = chunker.chunk()
     print(f"Chunked!\n")
 
-    db.index(chunked_content)
+    indexer = Indexer(collection=mh_collection, chunked_content=chunked_content)
+    indexer.index()
     print(f"Indexed!\n")
 
 queries = [ "subsidies" ]

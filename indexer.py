@@ -4,7 +4,7 @@ class Indexer:
     def __init__(self, collection, chunked_content, batch_size=100):
         self.collection = collection
         self.chunked_content = chunked_content
-        self.batch_size = batch_size  # Control batch size
+        self.batch_size = batch_size 
 
     def get_ready(self):
         ids = []
@@ -19,9 +19,8 @@ class Indexer:
         return ids, texts, metadatas
 
     def index(self):
-        print("Get ready!")
+        
         ids, texts, metadatas = self.get_ready()
-        print("Ready!")
         print(f"Total chunks to index: {len(ids)}")
         
         # Process in batches to avoid overwhelming the database
@@ -43,7 +42,6 @@ class Indexer:
                 
             except Exception as e:
                 print(f"Indexing failed for batch {i//self.batch_size + 1}: {e}")
-                # Optional: Add error handling strategy here
                 
         print("Indexing complete!")
         return
