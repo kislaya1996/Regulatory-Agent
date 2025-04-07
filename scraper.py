@@ -30,6 +30,7 @@ class Scraper:
             print(f"Error fetching table: {str(e)}")
             return None
         
+        
     def handle_pdfurl(self, pdf_url, dir_path):
         filename = os.path.basename(pdf_url)
         save_path = os.path.join(dir_path, filename)
@@ -59,7 +60,7 @@ class Scraper:
             sno = row[0].text.strip()
             description = row[1].text.strip()
             
-            self.sno_description_map[sno] = description
+            self.sno_description_map[sno] = { "description" : description }
             
             dir_path = os.path.join(self.base_dir, sno)
             if not os.path.exists(dir_path):
@@ -72,9 +73,11 @@ class Scraper:
                     pdf_url = urljoin('https://merc.gov.in', link['href'])
                     self.handle_pdfurl(pdf_url, dir_path)
 
+
     def scrape(self):
         table = self.get_table()
         if table:
             self.handle_table(table)
         
         return self.save_paths
+

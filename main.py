@@ -4,6 +4,7 @@ from chunker import Chunker
 from indexer import Indexer
 from db import DB
 from llm import LLM
+from utilities import scrape_orders
 
 urls = [ 
     # Current Regulations
@@ -20,8 +21,9 @@ urls = [
     "https://merc.gov.in/regulation_type/draft-regulations/"
     ]
 
-db = DB(db_name="maharashtra")
-mh_collection = db.get_collection()
+order_url = "https://merc.gov.in/wp-admin/admin-ajax.php?action=getpostsfororderdatatables&_=1744051051853"
+paths = scrape_orders(order_url)
+print(paths)
 
 pdf_paths = set()
 
@@ -29,6 +31,9 @@ for url in urls:
     scraper = Scraper(base_url=url)
     save_paths = scraper.scrape()
     pdf_paths.update(save_paths)
+
+db = DB(db_name="maharashtra")
+mh_collection = db.get_collection()
 
 for path in pdf_paths:
     print(f"Processing {path}")
