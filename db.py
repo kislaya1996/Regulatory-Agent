@@ -16,7 +16,10 @@ class DB:
             client = chromadb.PersistentClient()
             self.collection = client.get_or_create_collection(
                 name=self.db_name, 
-                embedding_function=self.embedding_function
+                embedding_function=self.embedding_function,
+                metadata={
+                    "hnsw:space": "cosine"
+                }
             )
             print("Connected to Chroma!")
         

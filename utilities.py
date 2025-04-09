@@ -1,8 +1,7 @@
 import requests
 import os
-import re
 
-def scrape_orders(url):
+def scrape_orders(url, n=20):
 
     save_paths = set()
 
@@ -16,6 +15,10 @@ def scrape_orders(url):
         orders = data.get("data", [])
         
         for order in orders:
+
+            if len(save_paths) >= n:
+                print(f"Downloaded {n} orders. Stopping further downloads.")
+                break
             
             attachments = order.get("attachment", [])
             

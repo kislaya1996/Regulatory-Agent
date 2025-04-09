@@ -24,7 +24,7 @@ class Scraper:
             response = requests.get(self.base_url)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, "html.parser")
-            return soup.find('table', {'id': 'table_tender'})
+            return soup.find('table')
         
         except Exception as e:
             print(f"Error fetching table: {str(e)}")
