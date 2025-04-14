@@ -1,7 +1,9 @@
 import requests
 import os
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
-def scrape_orders(url, n=20):
+def scrape_orders(url):
 
     save_paths = set()
 
@@ -16,10 +18,22 @@ def scrape_orders(url, n=20):
         
         for order in orders:
 
-            if len(save_paths) >= n:
-                print(f"Downloaded {n} orders. Stopping further downloads.")
+            # Get only 3 months earlier
+            date = order.get("timestamp")
+            given_date = datetime.strptime(date, "%Y%m%d")
+            today = datetime.today()
+            three_months_ago = today - relativedelta(months=3)
+
+            if given_date < three_months_ago:
+                print(f"Order date {given_date} is older than 3 months. Stopping.")
                 break
             
+            # Get only specific types
+            terms = order.get("terms")
+            if terms != "Open Access" or terms != "Multi Year Tariff MYT":
+                print(f"Order type {terms} is not Open Access or Multi Year Tariff MYT. Skipping.")
+                continue
+
             attachments = order.get("attachment", [])
             
             for attachment in attachments:   

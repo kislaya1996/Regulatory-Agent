@@ -7,14 +7,22 @@ class Indexer:
         self.batch_size = batch_size 
 
     def get_ready(self):
+        
+        check = set()
         ids = []
         texts = []
         metadatas = []
 
         for chunk in self.chunked_content:
-            ids.append(hashlib.blake2b(chunk["content"].encode()).hexdigest())
-            texts.append(chunk["content"])
-            metadatas.append({"page_number": chunk["page_number"], "source": chunk["source"]})
+            temp = hashlib.blake2b(chunk["content"].encode()).hexdigest()
+
+            if temp not in check:
+                check.add(temp)
+
+                # Now add the chunk to the lists
+                ids.append(temp)
+                texts.append(chunk["content"])
+                metadatas.append({"page_number": chunk["page_number"], "source": chunk["source"]})
 
         return ids, texts, metadatas
 

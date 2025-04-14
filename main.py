@@ -11,10 +11,9 @@ def score_numeric_richness(text):
     )
 
 ques = [
-    # "What are the regional subsidies available in state of Maharashtra",
-    # "Give me a summary of the open access regulations relevant to C&Is for Maharashtra",
-    # "What are the all penalties and rebates applicable in Maharashtra (and DISCOM)?",
-    "Cross subsidy surcharge and additional surcharge for open access customers in Maharashtra"
+    "What is cross subsidy surcharge & additional surcharge in Maharashtra for TATA discom?",
+    "How much is the distribution loss/wheeling loss for commercial building connected to MSEDCL discom?",
+    "How much is green energy charges in Maharashtra for consumer?"
 ]
 
 regulations_db = DB(db_name="maharashtra")
@@ -38,4 +37,4 @@ for q in ques:
 
     output = llm.ask(context, question=q)
     print(output, "\n------------------------------------------------\n")
-    time.sleep(1)
+    time.sleep(5)
