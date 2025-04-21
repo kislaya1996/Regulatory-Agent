@@ -24,7 +24,7 @@ top_k = 5
 for q in ques:
     queries = [ q ]
     result_db = db.query(queries)
-    result_whoosh = db.query_whoosh(queries)
+    result_whoosh = db.query_whoosh(q)
 
     result = result_db + result_whoosh
 

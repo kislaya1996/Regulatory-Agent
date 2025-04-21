@@ -47,10 +47,12 @@ class DB:
             os.makedirs(self.whoosh_index_dir)
             # Create a new index
             self.whoosh_index = create_in(self.whoosh_index_dir, schema)
+            print(f"Created Whoosh index at {self.whoosh_index_dir}")
         else:
             # Open the existing index
             try:
                 self.whoosh_index = open_dir(self.whoosh_index_dir)
+                print(f"Opened Whoosh index at {self.whoosh_index_dir}")
             except:
                 # If there's an issue opening the index, create a new one
                 self.whoosh_index = create_in(self.whoosh_index_dir, schema)
