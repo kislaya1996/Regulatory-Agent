@@ -49,6 +49,6 @@ collection = testing_db.get_collection()
 whoosh_index = testing_db.get_whoosh_index()
 
 indexer = Indexer(collection=collection, whoosh_index=whoosh_index, chunked_content=chunked_doc)
-indexer.index()
+# indexer.index()
 indexer.index_whoosh()
 print(f"Indexed!\n")
