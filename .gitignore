@@ -6,3 +6,4 @@ annual_reports
 __pycache__
 chroma
 reg-venv
+test_whoosh
