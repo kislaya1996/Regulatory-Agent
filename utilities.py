@@ -1,6 +1,6 @@
 import requests
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 def scrape_orders(url):

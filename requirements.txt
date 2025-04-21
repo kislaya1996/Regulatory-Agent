@@ -7,3 +7,6 @@ langchain
 chromadb
 sentence_transformers
 boto3
+camelot-py[base]
+pdfplumber
+whoosh-reloaded
