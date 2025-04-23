@@ -11,7 +11,7 @@ def score_numeric_richness(text):
     )
 
 ques = [
-    "What is cross subsidy surcharge for industrial customer for FY 2024-2025?",
+    # "What is cross subsidy surcharge for industrial customer for FY 2024-2025?",
     "What are HT tariff categories and their energy charges for Fy 23 & Fy24?",
     "What is the wheeling loss & wheeling charges for all type of connections?"
 ]

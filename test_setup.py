@@ -3,7 +3,7 @@ from db import DB
 from indexer import Indexer
 from chunker import Chunker
 
-path = "downloads\\distribution\\3\\Final-Order-Case-No.-237-of-2023_TPC-D.pdf"
+path = "downloads\\orders\\Final-MYT-Order-Case-No.-210-of-2024_TPC-D-280325.pdf"
 
 pdf = pdfplumber.open(path)
 text_doc = []
@@ -49,6 +49,6 @@ collection = testing_db.get_collection()
 whoosh_index = testing_db.get_whoosh_index()
 
 indexer = Indexer(collection=collection, whoosh_index=whoosh_index, chunked_content=chunked_doc)
-# indexer.index()
+indexer.index()
 indexer.index_whoosh()
 print(f"Indexed!\n")
