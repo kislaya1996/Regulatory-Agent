@@ -26,6 +26,7 @@ class LLM:
 
             Answer the following question:
             {question}
+            Give very precise answers, no need to explain details not relevant to the question. If the question demands looking at values, just provide the value.
         """
 
         return prompt

@@ -30,7 +30,8 @@ def scrape_orders(url):
             
             # Get only specific types
             terms = order.get("terms")
-            if terms != "Open Access" or terms != "Multi Year Tariff MYT":
+            print(terms)
+            if terms != "Open Access" and terms != "Multi Year Tariff MYT":
                 print(f"Order type {terms} is not Open Access or Multi Year Tariff MYT. Skipping.")
                 continue
 
