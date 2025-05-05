@@ -33,7 +33,7 @@ class LLMGemini:
         Please format your response as a markdown table with the following columns:
         | Charge Type | Unit | Value |
         
-        Only include values that are explicitly mentioned in the context. If a value is not available, leave the cell blank.
+        If a value is marked as - or empty , include that as well. 
         """
 
         return prompt

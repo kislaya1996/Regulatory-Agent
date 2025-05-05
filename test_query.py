@@ -38,7 +38,7 @@ def extract_retrieval_queries(user_question, exclude_keywords=None, must_include
 exclude_keywords = ["proposed", "estimated", "submitted"]
 
 # Example: Replace this with your actual user query
-user_question = "What is the approved CSS for EHV and HT customers for 2025-26?"
+user_question = "What is the CSS for HT and EHV , Industrial and Commercial consumers for 2025-26?"
 
 # Generate retrieval queries
 must_include = "approved"
@@ -70,6 +70,6 @@ context = '\n\n'.join(all_results)
 
 # Use a single overall question to prompt for all charges in a table
 # print(context)
-overall_ques = "Give me CSS approved charge for EHV and HT customers as for year 2025-26"
-output = llm.ask(context, question=overall_ques)
+# overall_ques = "Give me CSS approved charge for EHV and HT customers as for year 2025-26"
+output = llm.ask(context, question=user_question)
 print(output, "\n------------------------------------------------\n")
