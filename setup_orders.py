@@ -8,9 +8,10 @@ from utilities import scrape_orders
 # order_paths = scrape_orders(order_url)
 
 order_paths = {
-    "tata" : "downloads\orders\Final-MYT-Order-Case-No.-210-of-2024_TPC-D-280325.pdf", # Tata
+    "kartanaka_combined" : "downloads\orders\karnatak_combined_tariff_order.pdf", # Karnataka
     "adani" : "downloads\orders\AEML-D-Complete-Final-MYT-Order-28.03.2025-SD.pdf", # Adani
-    "msedcl" : "downloads\orders\MSEDCL-MYT-Order_Case_no_217-of-2024.pdf" # MSEDCL
+    "msedcl" : "downloads\orders\MSEDCL-MYT-Order_Case_no_217-of-2024.pdf", # MSEDCL
+    "tata" : "downloads\orders\Final-MYT-Order-Case-No.-210-of-2024_TPC-D-280325.pdf" # Tata
 }
 
 for discom, path in order_paths.items():
