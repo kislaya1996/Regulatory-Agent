@@ -1,7 +1,7 @@
 from utilities import query_discom_orders
 from db import DB
 
-discoms = ["kartanaka_combined","adani","msedcl", "tata"]
+discoms = ["karnataka_combined","adani","msedcl", "tata"]
 
 # orders_db = DB(db_name="orders_db", whoosh_index_dir="orders_whoosh")
 

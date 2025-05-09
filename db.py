@@ -31,7 +31,7 @@ class DB:
         except Exception as e:
             print(f"Error connecting to Chroma : {e}")
 
-        self.whoosh_index_dir = whoosh_index_dir
+        self.whoosh_index_dir = os.path.join("whoosh", whoosh_index_dir)
         self.whoosh_index = None
 
         # Create the Whoosh schema
