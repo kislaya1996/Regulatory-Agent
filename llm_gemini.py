@@ -7,8 +7,6 @@ from google import genai
 
 load_dotenv()
 
-
-
 class LLMGemini:
     def __init__(self):
         self.client = genai.Client(api_key="AIzaSyC295R8l9zcLFmflHzhXZHItpWVKAAB460")
@@ -27,10 +25,10 @@ class LLMGemini:
         Here is the context to analyze:
         {context}
 
-        Based on this context, please provide a summary table for the following charges:
+        Based on this context, please provide answer for the following question:
         {question}
 
-        Please format your response as a markdown table with the following columns:
+        Please format your response as only a markdown table with the following columns:
         | Charge Type | Unit | Value |
         
         If a value is marked as - or empty , include that as well. 

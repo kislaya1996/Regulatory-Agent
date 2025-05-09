@@ -7,4 +7,5 @@ __pycache__
 chroma
 reg-venv
 test_whoosh
+tata_whoosh
 .DS_store
