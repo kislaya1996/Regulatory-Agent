@@ -106,17 +106,9 @@ def extract_retrieval_queries(user_question, exclude_keywords=None, must_include
 
 exclude_keywords = ["proposed", "estimated", "submitted"]
 must_include = "approved"
-top_k = 5
+top_k = 10
 
-questions = [
-    "What are the Fixed Charges for HT and EHV, Industrial and Commercial consumers for 2025-26?",
-    "What are the Energy Charges for HT and EHV, Industrial and Commercial consumers for 2025-26?",
-    "What is the Wheeling Charge for HT and EHV, Industrial and Commercial consumers for 2025-26?",
-    "What is the Wheeling Loss for HT and EHV, Industrial and Commercial consumers for 2025-26?",
-    "What are the CSS for HT and EHV, Industrial and Commercial consumers for 2025-26?"
-]
-
-def query_discom_orders(discom):
+def query_discom_orders(discom, questions):
     
     db = DB(db_name=f"{discom}_db", whoosh_index_dir=f"{discom}_whoosh", embedding_model="BAAI/bge-large-en-v1.5")
     llm = LLMGemini()
@@ -135,6 +127,8 @@ def query_discom_orders(discom):
             result_whoosh = db.query_whoosh(q)
 
             result = result_chroma + result_whoosh
+
+            # result = result_whoosh
             
             result = sorted(result, key=lambda x: score_table_relevance(x), reverse=True)
             result = sorted(result, key=lambda x: score_numeric_richness(x), reverse=True)
