@@ -8,6 +8,7 @@ from utilities import scrape_orders
 # order_paths = scrape_orders(order_url)
 
 order_paths = {
+    "tn_combined" : "downloads\orders\Tamil Nadu Tariff 2024-25.pdf", #TN
     "karnataka_combined" : "downloads\orders\karnatak_combined_tariff_order.pdf", # Karnataka
     "adani" : "downloads\orders\AEML-D-Complete-Final-MYT-Order-28.03.2025-SD.pdf", # Adani
     "msedcl" : "downloads\orders\MSEDCL-MYT-Order_Case_no_217-of-2024.pdf", # MSEDCL
