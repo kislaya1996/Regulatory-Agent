@@ -8,7 +8,13 @@ from utilities import scrape_orders
 # order_paths = scrape_orders(order_url)
 
 order_paths = {
-    "up_combined" : "downloads\\orders\\UP_Tariff_Public Notice English_FY2023_24.pdf", #UP
+    "gj_surat" : "downloads\\orders\\TORRENT Surat_Tariff-Schedule-of-TPL-D-S-w.e.f.-01.06.2024.pdf",
+    "gj_ahembdabad" : "downloads\\orders\\TORRENT AhemdabadTariff-Schedule-of-TPL-D-A-w.e.f-01.06.2024.pdf",
+    "gj_ugvcl" : "downloads\\orders\\Tarffi Order_UGVCL-2321-2024-Tariff-Order-for-FY-2024-25-dtd.-01.06.2024.pdf",
+    "gj_pgvcl" : "downloads\\orders\\Tarffi Order_PGVCL-2320-2024-Tariff-Order-for-FY-2024-25-dtd.-01.06.2024.pdf",
+    "gj_mgvcl" : "downloads\\orders\\Tarffi Order_MGVCL-2319-2024-Tariff-Order-for-FY-2024-25-dtd.-01.06.2024.pdf",
+    "gj_dgvcl" : "downloads\\orders\\Tarffi Order_DGVCL-2318-2024-Tariff-Order-for-FY-2024-25-dtd.-01.06.2024.pdf",
+    # "up_combined" : "downloads\\orders\\UP_Tariff_Public Notice English_FY2023_24.pdf", #UP
     # "tn_combined" : "downloads\orders\Tamil Nadu Tariff 2024-25.pdf", #TN
     # "karnataka_combined" : "downloads\orders\karnatak_combined_tariff_order.pdf", # Karnataka
     # "adani" : "downloads\orders\AEML-D-Complete-Final-MYT-Order-28.03.2025-SD.pdf", # Adani
