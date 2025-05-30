@@ -29,7 +29,7 @@ class LLMGemini:
         {question}
 
         Please format your response as only a markdown table with the following columns:
-        | Charge Type | Unit | Value | Discom | Type |
+        | Type | Unit | Value | Discom | Charge Type |
         
         If a value is marked as - or empty , include that as well. 
         """
