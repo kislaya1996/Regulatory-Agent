@@ -1,0 +1,8 @@
+{
+  "document_name": "simple_test",
+  "index_type": "vector",
+  "storage_type": "chroma",
+  "collection_name": "simple_test_collection",
+  "node_count": 2,
+  "created_at": "1753793638.3859704"
+}
