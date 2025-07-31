@@ -8,3 +8,11 @@ chroma
 reg-venv
 whoosh
 .DS_store
+
+# Storage and persistence directories
+storage/
+regulatory_storage/
+demo_storage/
+cache/
+embeddings_cache/
+*.pkl

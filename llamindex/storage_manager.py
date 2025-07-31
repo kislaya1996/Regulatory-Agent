@@ -102,7 +102,8 @@ class StorageManager:
         # which is `self.vector_indexes_dir / document_name` or `self.vector_indexes_dir / f"{document_name}_file_based"`
         
         # Determine the correct persist_dir used during index creation
-        index_persist_dir = Path(index.storage_context.persist_dir)
+        index_persist_dir = self.vector_indexes_dir / document_name if use_chroma else \
+                            self.vector_indexes_dir / f"{document_name}_file_based"
         
         index.storage_context.persist(persist_dir=str(index_persist_dir))
         
@@ -170,7 +171,7 @@ class StorageManager:
                     if embed_model:
                         Settings.embed_model = embed_model
 
-                    index = VectorStoreIndex.from_storage_context(storage_context)
+                    index = VectorStoreIndex.from_vector_store(vector_store)
                     
                     print(f"Loaded vector index from {vector_index_persist_dir} using ChromaDB collection: {chroma_collection_name}")
                     return index
@@ -211,7 +212,7 @@ class StorageManager:
                 storage_context = StorageContext.from_defaults(persist_dir=str(vector_index_persist_dir))
                 if embed_model:
                     Settings.embed_model = embed_model
-                index = VectorStoreIndex.from_storage_context(storage_context)
+                index = VectorStoreIndex(storage_context=storage_context)
                 print(f"Loaded file-based vector index from {vector_index_persist_dir}")
                 return index
             else:
@@ -300,7 +301,7 @@ class StorageManager:
                     if embed_model:
                         Settings.embed_model = embed_model
 
-                    index = DocumentSummaryIndex.from_storage_context(storage_context)
+                    index = DocumentSummaryIndex(storage_context=storage_context)
                     
                     print(f"Loaded document summary index from {index_dir} using ChromaDB collection: {chroma_collection_name}")
                     return index
@@ -340,7 +341,7 @@ class StorageManager:
                 storage_context = StorageContext.from_defaults(persist_dir=str(index_dir))
                 if embed_model:
                     Settings.embed_model = embed_model
-                index = DocumentSummaryIndex.from_storage_context(storage_context)
+                index = DocumentSummaryIndex(storage_context=storage_context)
                 print(f"Loaded file-based document summary index from {index_dir}")
                 return index
             else:

@@ -1,6 +1,6 @@
 from llama_index.core.tools import FunctionTool, QueryEngineTool
 from llama_index.core.schema import BaseNode
-from llama_index.core import VectorStoreIndex, DocumentSummaryIndex
+from llama_index.core import VectorStoreIndex, DocumentSummaryIndex, SummaryIndex
 from typing import List, Optional
 from storage_manager import StorageManager
 from custom_llm import llm_retrieval # Assuming this is correctly imported
@@ -59,6 +59,9 @@ def create_summary_tool(
     if document_summary_index is None:
         print(f"Creating new summary index for {document_name}")
         
+        # Create the persist directory first to avoid the FileNotFoundError
+        os.makedirs(summary_index_persist_dir, exist_ok=True)
+        
         # Initialize ChromaDB client and collection for this specific summary index
         db_summary = chromadb.PersistentClient(path=str(storage_manager.chroma_dir))
         chroma_collection_summary = db_summary.get_or_create_collection(chroma_collection_name)
@@ -66,18 +69,20 @@ def create_summary_tool(
         # Create ChromaVectorStore
         vector_store_summary = ChromaVectorStore(chroma_collection=chroma_collection_summary)
         
-        # Create StorageContext using the ChromaVectorStore and the persist_dir for LlamaIndex metadata
+        # Create StorageContext without persist_dir first to avoid loading existing components
         summary_storage_context = StorageContext.from_defaults(
-            vector_store=vector_store_summary,
-            persist_dir=summary_index_persist_dir # LlamaIndex's internal persistence
+            vector_store=vector_store_summary
         )
         
         # Create DocumentSummaryIndex
-        document_summary_index = DocumentSummaryIndex(
+        document_summary_index = SummaryIndex(
             nodes,
             storage_context=summary_storage_context,
             show_progress=True
         )
+        
+        # Now persist the index to the specified directory
+        document_summary_index.storage_context.persist(persist_dir=summary_index_persist_dir)
         
         # Save the index if storage manager is provided
         if storage_manager:
@@ -99,6 +104,7 @@ def create_summary_tool(
             query: The summary request (e.g., "Provide a comprehensive summary")
         """
         try:
+            # Configure query engine with proper settings to avoid input length issues
             query_engine = document_summary_index.as_query_engine(
                 response_mode="compact",
                 streaming=False,
@@ -106,26 +112,58 @@ def create_summary_tool(
                 response_kwargs={
                     "max_tokens": 1500,  # Limit response length
                     "temperature": 0.1,
-                }
+                },
+                # Add node filtering to limit input size
+                similarity_top_k=5,  # Limit number of nodes retrieved
+                node_postprocessors=None,  # Disable postprocessors that might add content
             )
             
+            # Create a more focused summary prompt
             summary_prompt = (
                 "Based on the most relevant sections of this regulatory order, "
-                "provide a comprehensive executive summary that includes: "
+                "provide a concise executive summary that includes: "
                 "1) The main purpose and scope of the order, "
                 "2) Key decisions and approvals, "
                 "3) Important dates and timelines, "
                 "4) Major entities involved, "
                 "5) Key financial or regulatory implications. "
-                "Focus on the most important information and provide a clear, "
-                "structured summary suitable for stakeholders."
+                "Keep the summary focused and under 1000 words. "
+                "If the content is too extensive, focus on the most critical information only."
             )
             
             response = query_engine.query(summary_prompt)
             return str(response)
             
         except Exception as e:
-            return f"Error generating summary: {str(e)}"
+            error_msg = str(e)
+            if "Input is too long" in error_msg or "ValidationException" in error_msg:
+                # Fallback: try with even more restrictive settings
+                try:
+                    print("Input too long, trying with more restrictive settings...")
+                    fallback_engine = document_summary_index.as_query_engine(
+                        response_mode="compact",
+                        streaming=False,
+                        llm=llm_retrieval,
+                        response_kwargs={
+                            "max_tokens": 800,
+                            "temperature": 0.1,
+                        },
+                        similarity_top_k=3,  # Even fewer nodes
+                    )
+                    
+                    fallback_prompt = (
+                        "Provide a brief summary of the key points from this regulatory order. "
+                        "Focus only on the most important decisions and their implications. "
+                        "Keep it under 500 words."
+                    )
+                    
+                    fallback_response = fallback_engine.query(fallback_prompt)
+                    return str(fallback_response)
+                    
+                except Exception as fallback_e:
+                    return f"Error generating summary (fallback also failed): {str(fallback_e)}"
+            else:
+                return f"Error generating summary: {error_msg}"
 
     return FunctionTool.from_defaults(
         name="regulatory_summary_tool",

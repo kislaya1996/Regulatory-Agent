@@ -57,6 +57,7 @@ def create_vector_query_tool(
     # If no existing index, create new one
     if vector_index is None:
         print(f"Creating new vector index for {document_name}")
+        os.makedirs(vector_index_persist_dir, exist_ok=True) 
         
         if use_chroma: # Use ChromaDB for vector storage
             # Initialize ChromaDB client and collection for this specific vector index
@@ -64,15 +65,15 @@ def create_vector_query_tool(
             
             # Use get_or_create_collection for robustness
             collection = chroma_client.get_or_create_collection(name=chroma_collection_name)
-            print(f"Using/Created ChromaDB collection: {chroma_collection_name}")
+            print(f"Using/Created ChromaDB collection: {collection.name}")
+
             
             # Create ChromaVectorStore
             vector_store = ChromaVectorStore(chroma_collection=collection)
             
-            # Create StorageContext using the ChromaVectorStore and the persist_dir for LlamaIndex metadata
+            # Create StorageContext without persist_dir first to avoid loading existing components
             storage_context = StorageContext.from_defaults(
-                vector_store=vector_store,
-                persist_dir=vector_index_persist_dir # LlamaIndex's internal persistence
+                vector_store=vector_store
             )
             
             # Create VectorStoreIndex with persistent storage
@@ -81,6 +82,9 @@ def create_vector_query_tool(
                 storage_context=storage_context,
                 show_progress=True # Optional: see progress
             )
+            
+            # Now persist the index to the specified directory
+            vector_index.storage_context.persist(persist_dir=vector_index_persist_dir)
             
             # Save the index metadata (ChromaDB handles its own data persistence)
             storage_manager.save_vector_index(vector_index, document_name, use_chroma=True)
@@ -91,12 +95,16 @@ def create_vector_query_tool(
             file_index_dir = os.path.join(storage_manager.vector_indexes_dir, f"{document_name}_file_based")
             os.makedirs(file_index_dir, exist_ok=True) # Ensure directory exists
 
-            storage_context = StorageContext.from_defaults(persist_dir=file_index_dir)
+            # Create StorageContext without persist_dir first to avoid loading existing components
+            storage_context = StorageContext.from_defaults()
             vector_index = VectorStoreIndex(
                 nodes,
                 storage_context=storage_context,
                 show_progress=True # Optional: see progress
             )
+            
+            # Now persist the index to the specified directory
+            vector_index.storage_context.persist(persist_dir=file_index_dir)
             
             # Save the index (LlamaIndex's persist method will handle SimpleVectorStore and other components)
             storage_manager.save_vector_index(vector_index, document_name, use_chroma=False)
@@ -135,9 +143,26 @@ def create_vector_query_tool(
                 )
             
             response = query_engine.query(query)
-            return str(response)
+            response_text = str(response)
+            
+            # Validate response content
+            if len(response_text) < 10:
+                return "No relevant information found for your query. Please try rephrasing your question."
+            
+            # Check for corrupted content indicators
+            if response_text.startswith('%PDF') or ' 0 R ' in response_text[:200]:
+                return "Error: Retrieved content appears to be corrupted. Please try a different query or contact support."
+            
+            return response_text
+            
         except Exception as e:
-            return f"Error performing vector search: {str(e)}"
+            error_msg = str(e)
+            if "Input is too long" in error_msg:
+                return "The query returned too much content. Please try a more specific question."
+            elif "ValidationException" in error_msg:
+                return "Error: The model could not process the request. Please try a simpler query."
+            else:
+                return f"Error performing vector search: {error_msg}"
 
     return FunctionTool.from_defaults(
         name="regulatory_search_tool",

@@ -15,6 +15,7 @@ from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.extractors import TitleExtractor, QuestionsAnsweredExtractor, SummaryExtractor   
 from llama_index.core.ingestion import IngestionPipeline, IngestionCache
+from pdfplumber_reader import PDFPlumberReader  # Use our custom PDFPlumber reader
 
 from llama_index.core import Settings
 from typing import List
@@ -33,7 +34,7 @@ storage_manager = StorageManager(base_dir="./regulatory_storage")
 
 # --- Load Regulatory Document ---
 print("\n--- Loading Regulatory Document ---")
-filename = "../merc_test_files/orders/MSEDCL-MYT-Order_Case_no_217-of-2024.pdf"
+filename = "../downloads/orders/MSEDCL-MYT-Order_Case_no_217-of-2024.pdf"
 
 # Check if file exists
 if not os.path.exists(filename):
@@ -51,9 +52,47 @@ existing_nodes = storage_manager.load_nodes(document_name)
 
 if existing_nodes:
     print(f"Found existing processed nodes for {document_name}")
-    nodes = existing_nodes
-else:
-    print(f"No existing nodes found, processing document...")
+    # Validate existing nodes content
+    valid_nodes = []
+    for node in existing_nodes:
+        content = node.get_content()
+        # Check if content is actual text (not PDF structure)
+        if len(content) > 50 and not content.startswith('%PDF') and not ' 0 R ' in content[:100]:
+            valid_nodes.append(node)
+        else:
+            print(f"Skipping corrupted node with content: {content[:100]}...")
+    
+    if len(valid_nodes) > 0:
+        print(f"Using {len(valid_nodes)} valid nodes from existing storage")
+        nodes = valid_nodes
+    else:
+        print("No valid nodes found in existing storage, reprocessing document...")
+        existing_nodes = None
+
+if not existing_nodes:
+    print(f"No existing nodes found or all nodes corrupted, processing document...")
+    
+    # Use PDFPlumber reader with text extraction
+    pdf_reader = PDFPlumberReader()
+    documents = pdf_reader.load_data(filename)
+    
+    # Validate extracted content
+    valid_documents = []
+    print(f"Validating {len(documents)} extracted document sections...")
+    for i, doc in enumerate(documents):
+        content = doc.text
+        if len(content) > 100 and not content.startswith('%PDF') and not ' 0 R ' in content[:100]:
+            valid_documents.append(doc)
+            if i % 10 == 0:  # Progress indicator every 10 documents
+                print(f"Validated {i+1}/{len(documents)} sections...")
+        else:
+            print(f"Skipping corrupted document section {i+1}: {content[:100]}...")
+    
+    if not valid_documents:
+        print("Error: No valid text content extracted from PDF!")
+        exit()
+    
+    print(f"Successfully validated {len(valid_documents)} document sections")
     
     # Alternative approach: Use caching to avoid reprocessing
     # This will cache the results of LLM transformations to avoid making the same API calls again
@@ -69,19 +108,35 @@ else:
     )
 
     # Load data and create chunks
-    print("Loading data and creating chunks...")
-    documents = SimpleDirectoryReader(input_files=[filename]).load_data()
-    nodes = pipeline_with_cache.run(documents=documents)
+    print("Creating document chunks...")
+    nodes = pipeline_with_cache.run(documents=valid_documents)
     
     # Save the processed nodes
     storage_manager.save_nodes(nodes, document_name)
 
 print(f"Data loaded and chunked. Total nodes: {len(nodes)}")
 
+# Validate final nodes
+print("\n--- Validating Node Content ---")
+valid_nodes = []
+for i, node in enumerate(nodes):
+    content = node.get_content()
+    if len(content) > 50 and not content.startswith('%PDF') and not ' 0 R ' in content[:100]:
+        valid_nodes.append(node)
+    else:
+        print(f"Removing corrupted node {i}: {content[:100]}...")
+
+if len(valid_nodes) == 0:
+    print("Error: No valid nodes after processing!")
+    exit()
+
+nodes = valid_nodes
+print(f"Final valid nodes: {len(nodes)}")
+
 # Look at the content of the first chunk
 if nodes:
-    print("\nContent of the first chunk (with metadata):")
-    print(nodes[0].get_content(metadata_mode="all"))
+    print("\nContent of the first chunk (first 200 chars):")
+    print(repr(nodes[0].get_content()[:200]))
 
 Settings.llm = llm_retrieval
 
@@ -119,6 +174,7 @@ except Exception as e:
     print(f"Error checking ChromaDB: {e}")
 
 print("\n--- Testing combined tools (Vector and Summary) with Bedrock Claude Sonnet ---")
+
 
 print("\nQuery 1: Asking about specific content (should use regulatory_search_tool)")
 response_combined_1 = llm_retrieval.predict_and_call(
