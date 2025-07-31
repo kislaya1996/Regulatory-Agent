@@ -1,17 +1,17 @@
 from llama_index.llms.bedrock_converse import BedrockConverse
 import os
-from llama_index.llms.ollama import Ollama
+# from llama_index.llms.ollama import Ollama
 
 
-llm_indexing = Ollama(model="tinyllama", request_timeout=600.0)
+# llm_indexing = Ollama(model="tinyllama", request_timeout=600.0)
 
-# llm_indexing = BedrockConverse(
-#     model="arn:aws:bedrock:ap-south-1:554902127471:inference-profile/apac.amazon.nova-lite-v1:0",
-#     region_name="ap-south-1",
-#     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-#     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-#     temperature=0,
-# )
+llm_indexing = BedrockConverse(
+    model="arn:aws:bedrock:ap-south-1:554902127471:inference-profile/apac.amazon.nova-lite-v1:0",
+    region_name="ap-south-1",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    temperature=0,
+)
 
 llm_retrieval = BedrockConverse(
     model="arn:aws:bedrock:ap-south-1:554902127471:inference-profile/apac.anthropic.claude-3-5-sonnet-20241022-v2:0",

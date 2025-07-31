@@ -1,10 +1,21 @@
+import os
 from typing import List, Optional
 from llama_index.core.vector_stores import MetadataFilters, FilterCondition
 from llama_index.core import VectorStoreIndex
 from llama_index.core.schema import BaseNode
 from llama_index.core.tools import FunctionTool
-from storage_manager import StorageManager
+from llama_index.core.storage import StorageContext
+from llama_index.vector_stores.chroma import ChromaVectorStore
+import chromadb
+from llama_index.core import Settings # Make sure Settings is imported for global configs
 
+from storage_manager import StorageManager
+# from custom_llm import llm_retrieval # Assuming you're setting LLM globally or passing to query engine
+
+# Ensure your LLM and Embedding Model are set up globally or passed explicitly
+# Example:
+# Settings.llm = YourCustomLLMInstance
+# Settings.embed_model = YourCustomEmbeddingModelInstance
 
 def create_vector_query_tool(
     nodes: List[BaseNode],
@@ -22,19 +33,77 @@ def create_vector_query_tool(
         use_chroma: Whether to use ChromaDB for storage
     """
     
+    if storage_manager is None:
+        raise ValueError("StorageManager must be provided for persistence.")
+
+    print(f"\n--- Setting up Vector Index Tool for {document_name} ---")
+
+    # Define paths for ChromaDB collection and LlamaIndex's internal storage for vector index
+    chroma_collection_name = f"{document_name}_collection"
+    # This path is for LlamaIndex's internal components (docstore, index_store)
+    vector_index_persist_dir = os.path.join(storage_manager.vector_indexes_dir, document_name)
+
     # Try to load existing index first
     vector_index = None
     if storage_manager:
-        vector_index = storage_manager.load_vector_index(document_name, use_chroma=use_chroma)
+        print(f"Attempting to load existing vector index for {document_name} from {vector_index_persist_dir}...")
+        try:
+            vector_index = storage_manager.load_vector_index(document_name, use_chroma=use_chroma)
+        except Exception as e:
+            print(f"Error loading existing vector index: {e}")
+            print("Will create new vector index from nodes...")
+            vector_index = None
     
     # If no existing index, create new one
     if vector_index is None:
         print(f"Creating new vector index for {document_name}")
-        vector_index = VectorStoreIndex(nodes)
         
-        # Save the index if storage manager is provided
-        if storage_manager:
-            storage_manager.save_vector_index(vector_index, document_name, use_chroma=use_chroma)
+        if use_chroma: # Use ChromaDB for vector storage
+            # Initialize ChromaDB client and collection for this specific vector index
+            chroma_client = chromadb.PersistentClient(path=str(storage_manager.chroma_dir))
+            
+            # Use get_or_create_collection for robustness
+            collection = chroma_client.get_or_create_collection(name=chroma_collection_name)
+            print(f"Using/Created ChromaDB collection: {chroma_collection_name}")
+            
+            # Create ChromaVectorStore
+            vector_store = ChromaVectorStore(chroma_collection=collection)
+            
+            # Create StorageContext using the ChromaVectorStore and the persist_dir for LlamaIndex metadata
+            storage_context = StorageContext.from_defaults(
+                vector_store=vector_store,
+                persist_dir=vector_index_persist_dir # LlamaIndex's internal persistence
+            )
+            
+            # Create VectorStoreIndex with persistent storage
+            vector_index = VectorStoreIndex(
+                nodes,
+                storage_context=storage_context,
+                show_progress=True # Optional: see progress
+            )
+            
+            # Save the index metadata (ChromaDB handles its own data persistence)
+            storage_manager.save_vector_index(vector_index, document_name, use_chroma=True)
+            print(f"Successfully created and persisted new vector index for {document_name}")
+
+        else: # Use file-based storage (SimpleVectorStore implicitly)
+            # Create a dedicated directory for file-based persistence for this index
+            file_index_dir = os.path.join(storage_manager.vector_indexes_dir, f"{document_name}_file_based")
+            os.makedirs(file_index_dir, exist_ok=True) # Ensure directory exists
+
+            storage_context = StorageContext.from_defaults(persist_dir=file_index_dir)
+            vector_index = VectorStoreIndex(
+                nodes,
+                storage_context=storage_context,
+                show_progress=True # Optional: see progress
+            )
+            
+            # Save the index (LlamaIndex's persist method will handle SimpleVectorStore and other components)
+            storage_manager.save_vector_index(vector_index, document_name, use_chroma=False)
+            print(f"Successfully created and persisted new file-based vector index for {document_name}")
+
+    else:
+        print(f"Successfully loaded existing vector index for {document_name}")
 
     def vector_query(
         query: str,
@@ -50,17 +119,19 @@ def create_vector_query_tool(
         try:
             if not page_numbers or page_numbers == ["all"]:
                 # No page filter - search all pages
-                query_engine = vector_index.as_query_engine(similarity_top_k=3)
-            else:
-                metadata_dicts = [
-                    {"key": "page_label", "value": p} for p in page_numbers
-                ]
                 query_engine = vector_index.as_query_engine(
                     similarity_top_k=3,
-                    filters=MetadataFilters.from_dicts(
-                        metadata_dicts,
-                        condition=FilterCondition.OR
-                    )
+                    # llm=llm_retrieval # Pass LLM if not set globally
+                )
+            else:
+                metadata_filters = MetadataFilters.from_dicts(
+                    [{"key": "page_label", "value": p} for p in page_numbers],
+                    condition=FilterCondition.OR
+                )
+                query_engine = vector_index.as_query_engine(
+                    similarity_top_k=3,
+                    filters=metadata_filters,
+                    # llm=llm_retrieval # Pass LLM if not set globally
                 )
             
             response = query_engine.query(query)

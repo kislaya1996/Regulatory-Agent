@@ -86,6 +86,7 @@ if nodes:
 Settings.llm = llm_retrieval
 
 # Create tools with persistence
+print(f"\n--- Creating Vector Query Tool for {document_name} ---")
 vector_query_tool = create_vector_query_tool(
     nodes=nodes,
     document_name=document_name,
@@ -93,11 +94,29 @@ vector_query_tool = create_vector_query_tool(
     use_chroma=True
 )
 
+print(f"\n--- Creating Summary Tool for {document_name} ---")
 summary_tool = create_summary_tool(
     nodes=nodes,
     document_name=document_name,
-    storage_manager=storage_manager
+    storage_manager=storage_manager,
+    use_chroma=True
 )
+
+# Verify vector index storage
+print(f"\n--- Verifying Vector Index Storage ---")
+try:
+    import chromadb
+    chroma_client = chromadb.PersistentClient(path=str(storage_manager.chroma_dir))
+    collection_name = f"{document_name}_collection"
+    
+    try:
+        collection = chroma_client.get_collection(name=collection_name)
+        count = collection.count()
+        print(f"ChromaDB collection '{collection_name}' exists with {count} embeddings")
+    except Exception as e:
+        print(f"ChromaDB collection '{collection_name}' not found: {e}")
+except Exception as e:
+    print(f"Error checking ChromaDB: {e}")
 
 print("\n--- Testing combined tools (Vector and Summary) with Bedrock Claude Sonnet ---")
 
@@ -131,13 +150,25 @@ response_combined_2 = llm_retrieval.predict_and_call(
 )
 print(f"Combined Tool Response 2: {str(response_combined_2)}")
 
-# print("\nQuery 3: Asking about specific page content")
-# response_combined_3 = llm.predict_and_call(
-#     [vector_query_tool, summary_tool],
-#     "What are the main points discussed on page 2 of this order?",
-#     verbose=True
-# )
-# print(f"Combined Tool Response 3: {str(response_combined_3)}")
-# print("Source nodes for Combined Tool Query 3:")
-# for n in response_combined_3.source_nodes:
-#     print(n.metadata) 
+print("\nQuery 3: Asking about specific page content")
+response_combined_3 = llm_retrieval.predict_and_call(
+    [vector_query_tool, summary_tool],
+    f"""You are a helpful assistant that extracts information from regulatory documents. 
+        "What are the Fixed Charges for HT and EHV, Industrial and Commercial consumers for 2025-26?",
+        "What are the Energy Charges for HT and EHV, Industrial and Commercial consumers for 2025-26?",
+        "What is the Wheeling Charge for HT and EHV, Industrial and Commercial consumers for 2025-26?",
+        "What is the Wheeling Loss for HT and EHV, Industrial and Commercial consumers for 2025-26?",
+        "What are the CSS for HT and EHV, Industrial and Commercial consumers for 2025-26?"
+        Please format your response as only a markdown table with the following columns:
+        | Type | Unit | Value | Year | Discom | Charge Type |
+        
+        If a value is marked as - or empty , include that as well. 
+        """,
+    verbose=True
+)
+print(f"Combined Tool Response 3: {str(response_combined_3)}")
+print("Source nodes for Combined Tool Query 3:")
+for n in response_combined_3.source_nodes:
+    print(n.metadata)
+
+

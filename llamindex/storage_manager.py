@@ -3,11 +3,11 @@ import json
 import pickle
 from typing import List, Optional, Dict, Any
 from pathlib import Path
-from llama_index.core import VectorStoreIndex, SummaryIndex
+from llama_index.core import VectorStoreIndex, DocumentSummaryIndex
 from llama_index.core.schema import BaseNode
 from llama_index.core.storage import StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.core.vector_stores import SimpleVectorStore
+from llama_index.core.vector_stores import SimpleVectorStore # Potentially needed for file-based loading if it's implicitly used
 import chromadb
 from llama_index.core import Settings
 
@@ -16,6 +16,7 @@ try:
     from embedding_model import embed_model
 except ImportError:
     embed_model = None
+    print("Warning: embedding_model not found. Ensure Settings.embed_model is configured.")
 
 
 class StorageManager:
@@ -27,13 +28,15 @@ class StorageManager:
     def __init__(self, base_dir: str = "./storage"):
         self.base_dir = Path(base_dir)
         self.nodes_dir = self.base_dir / "nodes"
-        self.indexes_dir = self.base_dir / "indexes"
+        self.vector_indexes_dir = self.base_dir / "vector_indexes" # Directory for VectorStoreIndex metadata
+        self.summary_indexes_dir = self.base_dir / "summary_indexes" # Directory for DocumentSummaryIndex metadata
         self.metadata_dir = self.base_dir / "metadata"
-        self.chroma_dir = self.base_dir / "chroma_db"
+        self.chroma_dir = self.base_dir / "chroma_db" # Where ChromaDB stores its actual database files
         
         # Create directories if they don't exist
         self.nodes_dir.mkdir(parents=True, exist_ok=True)
-        self.indexes_dir.mkdir(parents=True, exist_ok=True)
+        self.vector_indexes_dir.mkdir(parents=True, exist_ok=True)
+        self.summary_indexes_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
     
@@ -89,73 +92,36 @@ class StorageManager:
         Args:
             index: VectorStoreIndex to save
             document_name: Name identifier for the document
-            use_chroma: Whether to use ChromaDB for persistence
+            use_chroma: Whether the index uses ChromaDB (for metadata logging)
             
         Returns:
-            Path to the saved index
+            Path to the saved index metadata directory
         """
-        if use_chroma:
-            # Use ChromaDB for persistent storage
-            chroma_collection_name = f"{document_name}_collection"
-            chroma_client = chromadb.PersistentClient(path=str(self.chroma_dir))
-            
-            # Create or get collection
-            try:
-                collection = chroma_client.get_collection(name=chroma_collection_name)
-            except:
-                collection = chroma_client.create_collection(name=chroma_collection_name)
-            
-            # Create vector store
-            vector_store = ChromaVectorStore(chroma_collection=collection)
-            storage_context = StorageContext.from_defaults(vector_store=vector_store)
-            
-            # Extract nodes from the original index
-            nodes = list(index.docstore.docs.values())
-            
-            # Create a new index with the ChromaDB storage context
-            # This will automatically save the embeddings to ChromaDB
-            new_index = VectorStoreIndex(
-                nodes,
-                storage_context=storage_context
-            )
-            
-            # Save metadata about the index
-            metadata = {
-                "document_name": document_name,
-                "index_type": "vector",
-                "storage_type": "chroma",
-                "collection_name": chroma_collection_name,
-                "node_count": len(nodes),
-                "created_at": str(Path().stat().st_mtime)
-            }
-            
-            metadata_file = self.metadata_dir / f"{document_name}_vector_metadata.json"
-            with open(metadata_file, 'w') as f:
-                json.dump(metadata, f, indent=2)
-            
-            print(f"Saved vector index to ChromaDB collection: {chroma_collection_name}")
-            return str(self.indexes_dir / document_name)
+        # This persists LlamaIndex's internal docstore/indexstore metadata
+        # The persist_dir should be where the index's storage_context was told to persist
+        # which is `self.vector_indexes_dir / document_name` or `self.vector_indexes_dir / f"{document_name}_file_based"`
         
-        else:
-            # Use simple file-based storage
-            index_dir = self.indexes_dir / f"{document_name}_vector"
-            index.storage_context.persist(persist_dir=str(index_dir))
-            
-            # Save metadata
-            metadata = {
-                "document_name": document_name,
-                "index_type": "vector",
-                "storage_type": "file",
-                "node_count": len(index.docstore.docs),
-                "created_at": str(Path().stat().st_mtime)
-            }
-            
-            metadata_file = self.metadata_dir / f"{document_name}_vector_metadata.json"
-            with open(metadata_file, 'w') as f:
-                json.dump(metadata, f, indent=2)
-            
-            print(f"Saved vector index to {index_dir}")
-            return str(index_dir)
+        # Determine the correct persist_dir used during index creation
+        index_persist_dir = Path(index.storage_context.persist_dir)
+        
+        index.storage_context.persist(persist_dir=str(index_persist_dir))
+        
+        # Save metadata specifically for the vector index
+        metadata = {
+            "document_name": document_name,
+            "index_type": "vector",
+            "storage_type": "chroma" if use_chroma else "file", # Reflect storage type
+            "collection_name": f"{document_name}_collection" if use_chroma else None, # Chroma collection name
+            "node_count": len(index.docstore.docs), # Number of nodes in the document store
+            "created_at": str(os.path.getmtime(index_persist_dir)) # Timestamp of LlamaIndex metadata persistence
+        }
+        
+        metadata_file = self.metadata_dir / f"{document_name}_vector_metadata.json"
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        print(f"Saved vector index metadata to {index_persist_dir}")
+        return str(index_persist_dir)
     
     def load_vector_index(self, document_name: str, use_chroma: bool = True) -> Optional[VectorStoreIndex]:
         """
@@ -168,122 +134,221 @@ class StorageManager:
         Returns:
             VectorStoreIndex if found, None otherwise
         """
-        if use_chroma:
-            # Load from ChromaDB
-            chroma_collection_name = f"{document_name}_collection"
-            chroma_client = chromadb.PersistentClient(path=str(self.chroma_dir))
-            
-            try:
-                collection = chroma_client.get_collection(name=chroma_collection_name)
-                
-                # Check if collection has any data
-                if collection.count() == 0:
-                    print(f"ChromaDB collection {chroma_collection_name} is empty")
-                    return None
-                
-                vector_store = ChromaVectorStore(chroma_collection=collection)
-                storage_context = StorageContext.from_defaults(vector_store=vector_store)
-                
-                # Set the embedding model globally before creating the index
-                if embed_model:
-                    Settings.embed_model = embed_model
-                
-                # Create the index from the vector store
-                index = VectorStoreIndex.from_vector_store(
-                    vector_store, 
-                    storage_context=storage_context
-                )
-                
-                print(f"Loaded vector index from ChromaDB collection: {chroma_collection_name}")
-                return index
-                
-            except Exception as e:
-                print(f"Error loading vector index from ChromaDB: {e}")
-                return None
+        # Determine the expected persist_dir for LlamaIndex's internal metadata
+        vector_index_persist_dir = self.vector_indexes_dir / document_name if use_chroma else \
+                                    self.vector_indexes_dir / f"{document_name}_file_based"
+
+        if not vector_index_persist_dir.exists():
+            print(f"No saved vector index metadata found for {document_name} at {vector_index_persist_dir}")
+            return None
         
-        else:
-            # Load from file storage
-            index_dir = self.indexes_dir / f"{document_name}_vector"
-            
-            if not index_dir.exists():
-                print(f"No saved vector index found for {document_name}")
+        try:
+            # Load metadata to determine the actual storage type and collection name
+            metadata_file = self.metadata_dir / f"{document_name}_vector_metadata.json"
+            if not metadata_file.exists():
+                print(f"No vector metadata found for {document_name}")
                 return None
             
-            try:
-                storage_context = StorageContext.from_defaults(persist_dir=str(index_dir))
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+
+            if use_chroma and metadata.get("storage_type") == "chroma":
+                chroma_collection_name = metadata.get("collection_name", f"{document_name}_collection")
+                chroma_client = chromadb.PersistentClient(path=str(self.chroma_dir))
                 
-                # Set the embedding model if available
+                try:
+                    collection = chroma_client.get_collection(name=chroma_collection_name)
+                    
+                    vector_store = ChromaVectorStore(chroma_collection=collection)
+                    
+                    # Recreate StorageContext with the ChromaVectorStore and the persist_dir
+                    storage_context = StorageContext.from_defaults(
+                        vector_store=vector_store,
+                        persist_dir=str(vector_index_persist_dir) # Point to LlamaIndex's internal metadata
+                    )
+                    
+                    if embed_model:
+                        Settings.embed_model = embed_model
+
+                    index = VectorStoreIndex.from_storage_context(storage_context)
+                    
+                    print(f"Loaded vector index from {vector_index_persist_dir} using ChromaDB collection: {chroma_collection_name}")
+                    return index
+                    
+                except Exception as e:
+                    print(f"Error loading vector index from ChromaDB collection {chroma_collection_name}: {e}")
+                    # Fallback to recreate if ChromaDB collection cannot be loaded for some reason
+                    nodes = self.load_nodes(document_name)
+                    if nodes:
+                        print(f"Attempting to recreate vector index for {document_name} from stored nodes.")
+                        try:
+                            # Re-initialize ChromaDB for recreation
+                            recreate_db = chromadb.PersistentClient(path=str(self.chroma_dir))
+                            recreate_collection = recreate_db.get_or_create_collection(chroma_collection_name)
+                            recreate_vector_store = ChromaVectorStore(chroma_collection=recreate_collection)
+                            recreate_storage_context = StorageContext.from_defaults(
+                                vector_store=recreate_vector_store,
+                                persist_dir=str(vector_index_persist_dir)
+                            )
+                            if embed_model:
+                                Settings.embed_model = embed_model
+                            index = VectorStoreIndex(
+                                nodes,
+                                storage_context=recreate_storage_context
+                            )
+                            # Persist the newly recreated index metadata
+                            index.storage_context.persist(persist_dir=str(vector_index_persist_dir))
+                            print(f"Recreated vector index from nodes for {document_name}.")
+                            return index
+                        except Exception as recreate_e:
+                            print(f"Failed to recreate vector index from nodes: {recreate_e}")
+                            return None
+                    else:
+                        print(f"No stored nodes found to recreate vector index for {document_name}.")
+                        return None
+            elif not use_chroma and metadata.get("storage_type") == "file":
+                # Handle file-based loading if you intend to support it
+                storage_context = StorageContext.from_defaults(persist_dir=str(vector_index_persist_dir))
                 if embed_model:
                     Settings.embed_model = embed_model
-                
-                index = VectorStoreIndex.from_vector_store(
-                    storage_context.vector_store,
-                    storage_context=storage_context
-                )
-                
-                print(f"Loaded vector index from {index_dir}")
+                index = VectorStoreIndex.from_storage_context(storage_context)
+                print(f"Loaded file-based vector index from {vector_index_persist_dir}")
                 return index
-                
-            except Exception as e:
-                print(f"Error loading vector index: {e}")
+            else:
+                print(f"Mismatch in storage type for {document_name}. Expected chroma={use_chroma}, found {metadata.get('storage_type')}.")
                 return None
+            
+        except Exception as e:
+            print(f"Error loading vector index (general error): {e}")
+            return None
     
-    def save_summary_index(self, index: SummaryIndex, document_name: str) -> str:
+    def save_document_summary_index(self, index: DocumentSummaryIndex, document_name: str, use_chroma: bool = True) -> str:
         """
-        Save summary index to disk.
+        Save document summary index to disk.
         
         Args:
-            index: SummaryIndex to save
+            index: DocumentSummaryIndex to save
             document_name: Name identifier for the document
+            use_chroma: Whether the index is using ChromaDB (for metadata logging)
             
         Returns:
-            Path to the saved index
+            Path to the saved index metadata directory
         """
-        index_dir = self.indexes_dir / f"{document_name}_summary"
+        # This persists LlamaIndex's internal docstore/indexstore metadata
+        index_dir = self.summary_indexes_dir / document_name
         index.storage_context.persist(persist_dir=str(index_dir))
         
-        # Save metadata
+        # Save metadata specifically for the summary index
         metadata = {
             "document_name": document_name,
             "index_type": "summary",
-            "storage_type": "file",
-            "node_count": len(index.docstore.docs),
-            "created_at": str(Path().stat().st_mtime)
+            "storage_type": "chroma" if use_chroma else "file", # Reflect storage type
+            "collection_name": f"{document_name}_summary" if use_chroma else None, # Chroma collection name
+            "node_count": len(index.docstore.docs), # Number of nodes in the document store
+            "created_at": str(os.path.getmtime(index_dir)) # Timestamp of LlamaIndex metadata persistence
         }
         
         metadata_file = self.metadata_dir / f"{document_name}_summary_metadata.json"
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        print(f"Saved summary index to {index_dir}")
+        print(f"Saved document summary index metadata to {index_dir}")
         return str(index_dir)
     
-    def load_summary_index(self, document_name: str) -> Optional[SummaryIndex]:
+    def load_document_summary_index(self, document_name: str, use_chroma: bool = True) -> Optional[DocumentSummaryIndex]:
         """
-        Load summary index from disk.
+        Load document summary index from disk.
         
         Args:
             document_name: Name identifier for the document
+            use_chroma: Whether the index uses ChromaDB for its vectors
             
         Returns:
-            SummaryIndex if found, None otherwise
+            DocumentSummaryIndex if found, None otherwise
         """
-        index_dir = self.indexes_dir / f"{document_name}_summary"
+        index_dir = self.summary_indexes_dir / document_name
         
         if not index_dir.exists():
-            print(f"No saved summary index found for {document_name}")
+            print(f"No saved document summary index metadata found for {document_name} at {index_dir}")
             return None
         
         try:
-            storage_context = StorageContext.from_defaults(persist_dir=str(index_dir))
-            # Use the correct method for loading summary index from storage
-            index = SummaryIndex.from_storage_context(storage_context)
+            # Load metadata to determine the ChromaDB collection name
+            metadata_file = self.metadata_dir / f"{document_name}_summary_metadata.json"
+            if not metadata_file.exists():
+                print(f"No summary metadata found for {document_name}")
+                return None
             
-            print(f"Loaded summary index from {index_dir}")
-            return index
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+
+            if use_chroma and metadata.get("storage_type") == "chroma":
+                chroma_collection_name = metadata.get("collection_name", f"{document_name}_summary")
+                chroma_client = chromadb.PersistentClient(path=str(self.chroma_dir))
+                
+                try:
+                    collection = chroma_client.get_collection(name=chroma_collection_name)
+                    
+                    vector_store = ChromaVectorStore(chroma_collection=collection)
+                    
+                    # Recreate StorageContext with the ChromaVectorStore
+                    storage_context = StorageContext.from_defaults(
+                        vector_store=vector_store,
+                        persist_dir=str(index_dir) # Point to LlamaIndex's internal metadata
+                    )
+                    
+                    if embed_model:
+                        Settings.embed_model = embed_model
+
+                    index = DocumentSummaryIndex.from_storage_context(storage_context)
+                    
+                    print(f"Loaded document summary index from {index_dir} using ChromaDB collection: {chroma_collection_name}")
+                    return index
+                    
+                except Exception as e:
+                    print(f"Error loading document summary index from ChromaDB collection {chroma_collection_name}: {e}")
+                    # Fallback to recreate if ChromaDB collection cannot be loaded for some reason
+                    nodes = self.load_nodes(document_name)
+                    if nodes:
+                        print(f"Attempting to recreate summary index for {document_name} from stored nodes.")
+                        try:
+                            recreate_db = chromadb.PersistentClient(path=str(self.chroma_dir))
+                            recreate_collection = recreate_db.get_or_create_collection(chroma_collection_name)
+                            recreate_vector_store = ChromaVectorStore(chroma_collection=recreate_collection)
+                            recreate_storage_context = StorageContext.from_defaults(
+                                vector_store=recreate_vector_store,
+                                persist_dir=str(index_dir)
+                            )
+                            if embed_model:
+                                Settings.embed_model = embed_model
+                            index = DocumentSummaryIndex(
+                                nodes,
+                                storage_context=recreate_storage_context
+                            )
+                            # Persist the newly recreated index metadata
+                            index.storage_context.persist(persist_dir=str(index_dir))
+                            print(f"Recreated summary index from nodes for {document_name}.")
+                            return index
+                        except Exception as recreate_e:
+                            print(f"Failed to recreate summary index from nodes: {recreate_e}")
+                            return None
+                    else:
+                        print(f"No stored nodes found to recreate summary index for {document_name}.")
+                        return None
+            elif not use_chroma and metadata.get("storage_type") == "file":
+                # Handle file-based loading if you intend to support it
+                storage_context = StorageContext.from_defaults(persist_dir=str(index_dir))
+                if embed_model:
+                    Settings.embed_model = embed_model
+                index = DocumentSummaryIndex.from_storage_context(storage_context)
+                print(f"Loaded file-based document summary index from {index_dir}")
+                return index
+            else:
+                print(f"Mismatch in storage type for {document_name}. Expected chroma={use_chroma}, found {metadata.get('storage_type')}.")
+                return None
             
         except Exception as e:
-            print(f"Error loading summary index: {e}")
+            print(f"Error loading document summary index (general error): {e}")
             return None
     
     def get_document_metadata(self, document_name: str) -> Dict[str, Any]:
@@ -304,11 +369,11 @@ class StorageManager:
             with open(vector_metadata_file, 'r') as f:
                 metadata['vector_index'] = json.load(f)
         
-        # Check for summary vector index metadata (for summary tool)
-        summary_vector_metadata_file = self.metadata_dir / f"{document_name}_summary_vector_metadata.json"
-        if summary_vector_metadata_file.exists():
-            with open(summary_vector_metadata_file, 'r') as f:
-                metadata['summary_vector_index'] = json.load(f)
+        # Check for summary index metadata (for summary tool)
+        summary_metadata_file = self.metadata_dir / f"{document_name}_summary_metadata.json"
+        if summary_metadata_file.exists():
+            with open(summary_metadata_file, 'r') as f:
+                metadata['summary_index'] = json.load(f)
         
         # Check for nodes
         nodes_file = self.nodes_dir / f"{document_name}_nodes.pkl"
@@ -361,14 +426,20 @@ class StorageManager:
             if nodes_file.exists():
                 nodes_file.unlink()
             
-            # Delete vector index
-            vector_index_dir = self.indexes_dir / f"{document_name}_vector"
-            if vector_index_dir.exists():
+            # Delete vector index metadata directory (Chroma-based)
+            vector_index_chroma_dir = self.vector_indexes_dir / document_name
+            if vector_index_chroma_dir.exists():
                 import shutil
-                shutil.rmtree(vector_index_dir)
+                shutil.rmtree(vector_index_chroma_dir)
+
+            # Delete vector index metadata directory (File-based fallback)
+            vector_index_file_dir = self.vector_indexes_dir / f"{document_name}_file_based"
+            if vector_index_file_dir.exists():
+                import shutil
+                shutil.rmtree(vector_index_file_dir)
             
-            # Delete summary index
-            summary_index_dir = self.indexes_dir / f"{document_name}_summary"
+            # Delete summary index metadata directory
+            summary_index_dir = self.summary_indexes_dir / document_name
             if summary_index_dir.exists():
                 import shutil
                 shutil.rmtree(summary_index_dir)
@@ -382,17 +453,30 @@ class StorageManager:
             if summary_metadata_file.exists():
                 summary_metadata_file.unlink()
             
-            # Delete ChromaDB collection if it exists
+            # Delete ChromaDB collections if they exist
+            chroma_client = chromadb.PersistentClient(path=str(self.chroma_dir))
+            
+            # Main vector collection
             try:
-                chroma_client = chromadb.PersistentClient(path=str(self.chroma_dir))
-                chroma_collection_name = f"{document_name}_collection"
-                chroma_client.delete_collection(name=chroma_collection_name)
-            except:
-                pass  # Collection might not exist
+                chroma_collection_name_vector = f"{document_name}_collection"
+                chroma_client.delete_collection(name=chroma_collection_name_vector)
+                print(f"Deleted ChromaDB collection: {chroma_collection_name_vector}")
+            except Exception as e:
+                # print(f"ChromaDB collection {chroma_collection_name_vector} not found or error deleting: {e}")
+                pass 
+            
+            # Summary vector collection
+            try:
+                chroma_collection_name_summary = f"{document_name}_summary"
+                chroma_client.delete_collection(name=chroma_collection_name_summary)
+                print(f"Deleted ChromaDB collection: {chroma_collection_name_summary}")
+            except Exception as e:
+                # print(f"ChromaDB collection {chroma_collection_name_summary} not found or error deleting: {e}")
+                pass 
             
             print(f"Successfully deleted all data for document: {document_name}")
             return True
             
         except Exception as e:
             print(f"Error deleting document {document_name}: {e}")
-            return False 
+            return False
