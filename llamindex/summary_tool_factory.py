@@ -74,25 +74,38 @@ def create_summary_tool(
             vector_store=vector_store_summary
         )
         
-        # Create DocumentSummaryIndex
-        document_summary_index = SummaryIndex(
-            nodes,
-            storage_context=summary_storage_context,
-            show_progress=True
-        )
-        
-        # Now persist the index to the specified directory
-        document_summary_index.storage_context.persist(persist_dir=summary_index_persist_dir)
-        
-        # Save the index if storage manager is provided
-        if storage_manager:
-            # Pass use_chroma to save_document_summary_index
-            storage_manager.save_document_summary_index(
-                document_summary_index, 
-                document_name, 
-                use_chroma=use_chroma
+        # Create DocumentSummaryIndex with nodes
+        try:
+            document_summary_index = SummaryIndex(
+                nodes,
+                storage_context=summary_storage_context,
+                show_progress=True
             )
-            print(f"Successfully created and persisted new summary index for {document_name}")
+            
+            # Now persist the index to the specified directory
+            document_summary_index.storage_context.persist(persist_dir=summary_index_persist_dir)
+            
+            # Save the index if storage manager is provided
+            if storage_manager:
+                # Pass use_chroma to save_document_summary_index
+                storage_manager.save_document_summary_index(
+                    document_summary_index, 
+                    document_name, 
+                    use_chroma=use_chroma
+                )
+                print(f"Successfully created and persisted new summary index for {document_name}")
+        except Exception as e:
+            print(f"Error creating summary index: {e}")
+            # Fallback: create a simple vector index instead
+            print("Creating fallback vector index for summary functionality...")
+            from llama_index.core import VectorStoreIndex
+            document_summary_index = VectorStoreIndex(
+                nodes,
+                storage_context=summary_storage_context,
+                show_progress=True
+            )
+            document_summary_index.storage_context.persist(persist_dir=summary_index_persist_dir)
+            print(f"Created fallback vector index for {document_name}")
            
     else:
         print(f"Successfully loaded existing document summary index for {document_name}")

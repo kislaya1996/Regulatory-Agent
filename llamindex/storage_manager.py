@@ -3,7 +3,7 @@ import json
 import pickle
 from typing import List, Optional, Dict, Any
 from pathlib import Path
-from llama_index.core import VectorStoreIndex, DocumentSummaryIndex
+from llama_index.core import VectorStoreIndex, DocumentSummaryIndex, SummaryIndex
 from llama_index.core.schema import BaseNode
 from llama_index.core.storage import StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -223,12 +223,12 @@ class StorageManager:
             print(f"Error loading vector index (general error): {e}")
             return None
     
-    def save_document_summary_index(self, index: DocumentSummaryIndex, document_name: str, use_chroma: bool = True) -> str:
+    def save_document_summary_index(self, index: SummaryIndex, document_name: str, use_chroma: bool = True) -> str:
         """
         Save document summary index to disk.
         
         Args:
-            index: DocumentSummaryIndex to save
+            index: SummaryIndex to save
             document_name: Name identifier for the document
             use_chroma: Whether the index is using ChromaDB (for metadata logging)
             
@@ -256,7 +256,7 @@ class StorageManager:
         print(f"Saved document summary index metadata to {index_dir}")
         return str(index_dir)
     
-    def load_document_summary_index(self, document_name: str, use_chroma: bool = True) -> Optional[DocumentSummaryIndex]:
+    def load_document_summary_index(self, document_name: str, use_chroma: bool = True) -> Optional[SummaryIndex]:
         """
         Load document summary index from disk.
         
@@ -265,7 +265,7 @@ class StorageManager:
             use_chroma: Whether the index uses ChromaDB for its vectors
             
         Returns:
-            DocumentSummaryIndex if found, None otherwise
+            SummaryIndex if found, None otherwise
         """
         index_dir = self.summary_indexes_dir / document_name
         
@@ -289,61 +289,84 @@ class StorageManager:
                 
                 try:
                     collection = chroma_client.get_collection(name=chroma_collection_name)
-                    
                     vector_store = ChromaVectorStore(chroma_collection=collection)
                     
-                    # Recreate StorageContext with the ChromaVectorStore
+                    # Create StorageContext with the ChromaVectorStore and persist_dir
                     storage_context = StorageContext.from_defaults(
                         vector_store=vector_store,
-                        persist_dir=str(index_dir) # Point to LlamaIndex's internal metadata
+                        persist_dir=str(index_dir)
                     )
                     
                     if embed_model:
                         Settings.embed_model = embed_model
-
-                    index = DocumentSummaryIndex(storage_context=storage_context)
                     
-                    print(f"Loaded document summary index from {index_dir} using ChromaDB collection: {chroma_collection_name}")
-                    return index
+                    # Try to load the existing index from storage first
+                    try:
+                        # Load the index structure from the storage context
+                        from llama_index.core.indices.loading import load_index_from_storage
+                        index = load_index_from_storage(storage_context)
+                        print(f"Loaded existing document summary index from {index_dir} using ChromaDB collection: {chroma_collection_name}")
+                        return index
+                    except Exception as load_error:
+                        print(f"Could not load existing SummaryIndex from storage: {load_error}")
+                        print("Falling back to recreation from stored nodes...")
+                        
+                        # Fallback to recreation from nodes
+                        nodes = self.load_nodes(document_name)
+                        if not nodes:
+                            print(f"No stored nodes found to recreate summary index for {document_name}.")
+                            return None
+                        
+                        print(f"Recreating summary index for {document_name} from stored nodes.")
+                        
+                        # Recreate the SummaryIndex from nodes
+                        index = SummaryIndex(
+                            nodes,
+                            storage_context=storage_context
+                        )
+                        
+                        # Persist the newly recreated index metadata
+                        index.storage_context.persist(persist_dir=str(index_dir))
+                        print(f"Recreated summary index from nodes for {document_name} using ChromaDB collection: {chroma_collection_name}")
+                        return index
                     
                 except Exception as e:
-                    print(f"Error loading document summary index from ChromaDB collection {chroma_collection_name}: {e}")
-                    # Fallback to recreate if ChromaDB collection cannot be loaded for some reason
-                    nodes = self.load_nodes(document_name)
-                    if nodes:
-                        print(f"Attempting to recreate summary index for {document_name} from stored nodes.")
-                        try:
-                            recreate_db = chromadb.PersistentClient(path=str(self.chroma_dir))
-                            recreate_collection = recreate_db.get_or_create_collection(chroma_collection_name)
-                            recreate_vector_store = ChromaVectorStore(chroma_collection=recreate_collection)
-                            recreate_storage_context = StorageContext.from_defaults(
-                                vector_store=recreate_vector_store,
-                                persist_dir=str(index_dir)
-                            )
-                            if embed_model:
-                                Settings.embed_model = embed_model
-                            index = DocumentSummaryIndex(
-                                nodes,
-                                storage_context=recreate_storage_context
-                            )
-                            # Persist the newly recreated index metadata
-                            index.storage_context.persist(persist_dir=str(index_dir))
-                            print(f"Recreated summary index from nodes for {document_name}.")
-                            return index
-                        except Exception as recreate_e:
-                            print(f"Failed to recreate summary index from nodes: {recreate_e}")
-                            return None
-                    else:
-                        print(f"No stored nodes found to recreate summary index for {document_name}.")
-                        return None
+                    print(f"Error with ChromaDB collection {chroma_collection_name}: {e}")
+                    return None
+                    
             elif not use_chroma and metadata.get("storage_type") == "file":
-                # Handle file-based loading if you intend to support it
+                # Handle file-based loading
                 storage_context = StorageContext.from_defaults(persist_dir=str(index_dir))
                 if embed_model:
                     Settings.embed_model = embed_model
-                index = DocumentSummaryIndex(storage_context=storage_context)
-                print(f"Loaded file-based document summary index from {index_dir}")
-                return index
+                
+                try:
+                    # Try to load the existing index from storage first
+                    from llama_index.core.indices.loading import load_index_from_storage
+                    index = load_index_from_storage(storage_context)
+                    print(f"Loaded existing file-based document summary index from {index_dir}")
+                    return index
+                except Exception as load_error:
+                    print(f"Could not load existing file-based SummaryIndex from storage: {load_error}")
+                    print("Falling back to recreation from stored nodes...")
+                    
+                    # Fallback to recreation from nodes
+                    nodes = self.load_nodes(document_name)
+                    if not nodes:
+                        print(f"No stored nodes found to recreate summary index for {document_name}.")
+                        return None
+                    
+                    print(f"Recreating file-based summary index for {document_name} from stored nodes.")
+                    
+                    index = SummaryIndex(
+                        nodes,
+                        storage_context=storage_context
+                    )
+                    
+                    # Persist the newly recreated index metadata
+                    index.storage_context.persist(persist_dir=str(index_dir))
+                    print(f"Recreated file-based summary index from nodes for {document_name}")
+                    return index
             else:
                 print(f"Mismatch in storage type for {document_name}. Expected chroma={use_chroma}, found {metadata.get('storage_type')}.")
                 return None
