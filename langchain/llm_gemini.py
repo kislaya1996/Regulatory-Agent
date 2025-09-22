@@ -9,7 +9,7 @@ load_dotenv()
 
 class LLMGemini:
     def __init__(self):
-        self.client = genai.Client(api_key="AIzaSyC295R8l9zcLFmflHzhXZHItpWVKAAB460")
+        self.client = genai.Client(os.getenv("GOOGLE_GEMINI_API_KEY"))
         # self.client = boto3.client(
         #     "bedrock-runtime",
         #     region_name="ap-south-1",

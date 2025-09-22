@@ -128,7 +128,7 @@ def create_vector_query_tool(
             if not page_numbers or page_numbers == ["all"]:
                 # No page filter - search all pages
                 query_engine = vector_index.as_query_engine(
-                    similarity_top_k=3,
+                    similarity_top_k=10,  # Increased from 3 to 10 for more comprehensive retrieval
                     # llm=llm_retrieval # Pass LLM if not set globally
                 )
             else:
@@ -137,7 +137,7 @@ def create_vector_query_tool(
                     condition=FilterCondition.OR
                 )
                 query_engine = vector_index.as_query_engine(
-                    similarity_top_k=3,
+                    similarity_top_k=10,  # Increased from 3 to 10 for more comprehensive retrieval
                     filters=metadata_filters,
                     # llm=llm_retrieval # Pass LLM if not set globally
                 )
